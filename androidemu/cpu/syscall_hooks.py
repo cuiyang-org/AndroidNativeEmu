@@ -59,6 +59,8 @@ class SyscallHooks:
         self._syscall_handler.set_handler(0xe0, "gettid", 0, self._gettid)
         # self._syscall_handler.set_handler(0x180,"null1",0, self._null)
         self._syscall_handler.set_handler(0x180, "getrandom", 3, self._getrandom)
+        self._syscall_handler.set_handler(0xdd, "fcntl", 3, self._fcntl)
+        self._syscall_handler.set_handler(0xc7, "getuid", 0, self._getuid)
         self._modules = modules
         self._clock_start = time.time()
         self._clock_offset = randint(1000, 2000)
@@ -265,11 +267,17 @@ class SyscallHooks:
         If the connection or binding succeeds, zero is returned.
         On error, -1 is returned, and errno is set appropriately.
         """
-        hexdump.hexdump(mu.mem_read(addr, addr_len))
+        # hexdump.hexdump(mu.mem_read(addr, addr_len))
         
-        # return 0
-        raise NotImplementedError()
+        return 0
+        # raise NotImplementedError()
 
     def _getrandom(self, mu, buf, count, flags):
         mu.mem_write(buf, b"\x01" * count)
         return count
+
+    def _fcntl(self, mu, fd, cmd, arg):
+        return 1
+
+    def _getuid(self, mu):
+        return 0

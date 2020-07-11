@@ -186,8 +186,8 @@ class VirtualFileSystem:
                 logger.error('Writev %s' % data)
 
             return 0
-
-        raise NotImplementedError()
+        return 0
+        # raise NotImplementedError()
 
     def _handle_stat64(self, mu, filename_ptr, buf_ptr):
         filename = memory_helpers.read_utf8(mu, filename_ptr)

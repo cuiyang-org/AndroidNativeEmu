@@ -573,8 +573,11 @@ class JNIEnv:
         raise NotImplementedError()
 
     @native_method
-    def get_object_class(self, mu, env):
-        raise NotImplementedError()
+    def get_object_class(self, mu, env, obj):
+        logger.debug("JNIEnv->GetObjectClass(%u) was called" % obj)
+        jvm_id = self.get_local_reference(obj).value.jvm_id
+        clazz = self._class_loader.find_class_by_id(jvm_id)
+        return self.add_local_reference(jclass(clazz))
 
     @native_method
     def is_instance_of(self, mu, env, obj_idx, class_idx):
@@ -617,8 +620,25 @@ class JNIEnv:
         return method.jvm_id
 
     @native_method
-    def call_object_method(self, mu, env):
-        raise NotImplementedError()
+    def call_object_method(self, mu, env, obj_idx, method_id, args):
+        obj = self.get_reference(obj_idx)
+
+        if not isinstance(obj, jobject):
+            raise ValueError('Expected a jobject.')
+
+        method = obj.value.__class__.find_method_by_id(method_id)
+        if method is None:
+            raise RuntimeError("Could not find method %d in object %s by id." % (method_id, obj.value.jvm_name))
+
+        logger.debug("JNIEnv->CallObjectMethod(%s, %s <%s>, 0x%x) was called" % (
+            obj.value.jvm_name,
+            method.name,
+            method.signature, args))
+
+        # Parse arguments.
+        constructor_args = self.read_args_v(mu, args, method.args_list)
+
+        return method.func(obj.value, self._emu, *constructor_args)
 
     @native_method
     def call_object_method_v(self, mu, env, obj_idx, method_id, args):
@@ -1104,8 +1124,26 @@ class JNIEnv:
         return method.jvm_id
 
     @native_method
-    def call_static_object_method(self, mu, env):
-        raise NotImplementedError()
+    def call_static_object_method(self, mu, env, clazz_idx, method_id, args):
+        clazz = self.get_reference(clazz_idx)
+
+        if not isinstance(clazz, jclass):
+            raise ValueError('Expected a jclass.')
+
+        method = clazz.value.find_method_by_id(method_id)
+
+        if method is None:
+            raise RuntimeError("Could not find method %d in class %s by id." % (method_id, clazz.value.jvm_name))
+
+        logger.debug("JNIEnv->CallStaticObjectMethod(%s, %s <%s>, 0x%x) was called" % (
+            clazz.value.jvm_name,
+            method.name,
+            method.signature, args))
+
+        # Parse arguments.
+        constructor_args = self.read_args_v(mu, args, method.args_list)
+
+        return method.func(self._emu, *constructor_args)
 
     @native_method
     def call_static_object_method_v(self, mu, env, clazz_idx, method_id, args):
@@ -1537,7 +1575,7 @@ class JNIEnv:
             # 对Java数组不进行更新，释放c/c++数组
             self._emu.native_memory.release(elems, len(bs))
         else:
-            raise Exception("Illegal model(%d)" % mode)
+            raise RuntimeError("Illegal model(%d)" % mode)
 
     @native_method
     def release_char_array_elements(self, mu, env):
