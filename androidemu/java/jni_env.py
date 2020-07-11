@@ -1483,8 +1483,13 @@ class JNIEnv:
         raise NotImplementedError()
 
     @native_method
-    def get_byte_array_elements(self, mu, env):
-        raise NotImplementedError()
+    def get_byte_array_elements(self, mu, env, array, is_copy):
+        # TODO is_copy 没有处理
+        logger.debug("JNIEnv->GetByteArrayElements(%u, %u) was called" % (array, is_copy))
+        bs = bytes(self.get_reference(array).value)
+        addr = self._emu.native_memory.allocate(len(bs))
+        mu.mem_write(addr, bs)
+        return addr
 
     @native_method
     def get_char_array_elements(self, mu, env):
@@ -1515,8 +1520,24 @@ class JNIEnv:
         raise NotImplementedError()
 
     @native_method
-    def release_byte_array_elements(self, mu, env):
-        raise NotImplementedError()
+    def release_byte_array_elements(self, mu, env, array, elems, mode):
+        logger.debug("JNIEnv->ReleaseByteArrayElements(%u, %u, %u) was called" % (array, elems, mode))
+        bs = bytes(self.get_reference(array).value)
+        if mode == 0:
+            # 对Java数组进行更新并释放c/c++数组
+            self.get_reference(array).value = bs
+            self._emu.native_memory.release(elems, len(bs))
+        elif mode == 1:
+            # JNI_COMMIT
+            # 对Java数组进行更新但是不释放c/c++数组
+            self.get_reference(array).value = bs
+            pass
+        elif mode == 2:
+            # JNI_ABORT
+            # 对Java数组不进行更新，释放c/c++数组
+            self._emu.native_memory.release(elems, len(bs))
+        else:
+            raise Exception("Illegal model(%d)" % mode)
 
     @native_method
     def release_char_array_elements(self, mu, env):

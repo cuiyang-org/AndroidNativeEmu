@@ -22,7 +22,22 @@ class NativeMemory:
         self._syscall_handler.set_handler(0xDC, "madvise", 3, self._handle_madvise)
 
     def allocate(self, length, prot=UC_PROT_READ | UC_PROT_WRITE):
+        """
+        申请内存
+        :param length: 申请的长度
+        :param prot: 读写权限
+        :return: 申请的内存地址
+        """
         return self._heap.map(length, prot)
+
+    def release(self, addr, size):
+        """
+        释放内存
+        :param addr: 要释放内存地址
+        :param size: 释放内存的大小
+        :return: True成功，失败将会抛出异常
+        """
+        return self._heap.unmap(addr, size)
 
     def _handle_munmap(self, uc, addr, len_in):
         self._heap.unmap(addr, len_in)
